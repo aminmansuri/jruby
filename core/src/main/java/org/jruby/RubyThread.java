@@ -247,6 +247,9 @@ public class RubyThread extends RubyObject implements ExecutionContext {
     private static final AtomicIntegerFieldUpdater<RubyThread> INTERRUPT_FLAG_UPDATER =
             AtomicIntegerFieldUpdater.newUpdater(RubyThread.class, "interruptFlag");
 
+    private static final AtomicIntegerFieldUpdater<RubyThread> BLOCKING_COUNT_UPDATER =
+            AtomicIntegerFieldUpdater.newUpdater(RubyThread.class, "blockingCount");
+
     private static final int TIMER_INTERRUPT_MASK         = 0x01;
     private static final int PENDING_INTERRUPT_MASK       = 0x02;
     private static final int POSTPONED_JOB_INTERRUPT_MASK = 0x04;
@@ -2635,11 +2638,12 @@ public class RubyThread extends RubyObject implements ExecutionContext {
     }
 
     public void incrementBlocking() {
-        blockingCount++;
+        BLOCKING_COUNT_UPDATER.incrementAndGet(this);
     }
 
     public void decrementBlocking() {
-        blockingCount--;
+        assert blockingCount > 0 : "blocking count would go negative";
+        BLOCKING_COUNT_UPDATER.decrementAndGet(this);
     }
 
     public boolean isBlocking() {
