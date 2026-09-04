@@ -1787,7 +1787,10 @@ public class RubyIOBuffer extends RubyObject {
     public IRubyObject pread(ThreadContext context, IRubyObject io, IRubyObject _from, IRubyObject _length) {
         IRubyObject scheduler = context.getFiberCurrentThread().getSchedulerCurrent();
         RubyInteger fromInteger = toInteger(context, _from);
-        RubyInteger lengthInteger = toInteger(context, _length);
+        int offset = 0;
+        int length = toInteger(context, _length).asInt(context);
+        if (length == 0) length = size;
+        RubyInteger lengthInteger = asFixnum(context, length);
 
         if (!scheduler.isNil()) {
             IRubyObject result = FiberScheduler.ioPRead(context, scheduler, io, this, fromInteger, lengthInteger, asFixnum(context, 0));
@@ -1795,8 +1798,6 @@ public class RubyIOBuffer extends RubyObject {
         }
 
         int from = toInt(context, fromInteger);
-        int offset = 0;
-        int length = extractLength(context, lengthInteger, offset);
 
         return pread(context, RubyIO.convertToIO(context, io), from, length, offset);
     }
@@ -1820,8 +1821,11 @@ public class RubyIOBuffer extends RubyObject {
     public IRubyObject pread(ThreadContext context, IRubyObject io, IRubyObject _from, IRubyObject _length, IRubyObject _offset) {
         IRubyObject scheduler = context.getFiberCurrentThread().getSchedulerCurrent();
         RubyInteger fromInteger = toInteger(context, _from);
-        RubyInteger lengthInteger = toInteger(context, _length);
         RubyInteger offsetInteger = toInteger(context, _offset);
+        int offset = extractOffset(context, offsetInteger);
+        int length = toInteger(context, _length).asInt(context);
+        if (length == 0) length = size - offset;
+        RubyInteger lengthInteger = asFixnum(context, length);
 
         if (!scheduler.isNil()) {
             IRubyObject result = FiberScheduler.ioPRead(context, scheduler, io, this, fromInteger, lengthInteger, offsetInteger);
@@ -1829,8 +1833,6 @@ public class RubyIOBuffer extends RubyObject {
         }
 
         int from = toInt(context, fromInteger);
-        int offset = extractOffset(context, offsetInteger);
-        int length = extractLength(context, lengthInteger, offset);
 
         return pread(context, RubyIO.convertToIO(context, io), from, length, offset);
     }
@@ -1999,7 +2001,10 @@ public class RubyIOBuffer extends RubyObject {
     public IRubyObject pwrite(ThreadContext context, IRubyObject io, IRubyObject _from, IRubyObject _length) {
         IRubyObject scheduler = context.getFiberCurrentThread().getSchedulerCurrent();
         RubyInteger fromInteger = toInteger(context, _from);
-        RubyInteger lengthInteger = toInteger(context, _length);
+        int offset = 0;
+        int length = toInteger(context, _length).asInt(context);
+        if (length == 0) length = size;
+        RubyInteger lengthInteger = asFixnum(context, length);
 
         if (!scheduler.isNil()) {
             IRubyObject result = FiberScheduler.ioPWrite(context, scheduler, io, this, fromInteger, lengthInteger, RubyFixnum.zero(context.runtime));
@@ -2007,8 +2012,6 @@ public class RubyIOBuffer extends RubyObject {
         }
 
         int from = toInt(context, fromInteger);
-        int offset = 0;
-        int length = extractLength(context, lengthInteger, offset);
 
         return pwrite(context, RubyIO.convertToIO(context, io), from, length, offset);
     }
@@ -2032,8 +2035,11 @@ public class RubyIOBuffer extends RubyObject {
     public IRubyObject pwrite(ThreadContext context, IRubyObject io, IRubyObject _from, IRubyObject _length, IRubyObject _offset) {
         IRubyObject scheduler = context.getFiberCurrentThread().getSchedulerCurrent();
         RubyInteger fromInteger = toInteger(context, _from);
-        RubyInteger lengthInteger = toInteger(context, _length);
         RubyInteger offsetInteger = toInteger(context, _offset);
+        int offset = extractOffset(context, offsetInteger);
+        int length = toInteger(context, _length).asInt(context);
+        if (length == 0) length = size - offset;
+        RubyInteger lengthInteger = asFixnum(context, length);
 
         if (!scheduler.isNil()) {
             IRubyObject result = FiberScheduler.ioPWrite(context, scheduler, io, this, fromInteger, lengthInteger, offsetInteger);
@@ -2041,8 +2047,6 @@ public class RubyIOBuffer extends RubyObject {
         }
 
         int from = toInt(context, fromInteger);
-        int offset = extractOffset(context, offsetInteger);
-        int length = extractLength(context, lengthInteger, offset);
 
         return pwrite(context, RubyIO.convertToIO(context, io), from, length, offset);
     }
