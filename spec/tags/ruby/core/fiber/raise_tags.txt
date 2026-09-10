@@ -1,2 +1,3 @@
 fails:Fiber#raise does not allow message and extra keyword arguments
 fails:Fiber#raise should raise on parent fiber
+fails:Fiber#raise raises in a Fiber which is resuming the current Fiber, without resuming the current Fiber again
