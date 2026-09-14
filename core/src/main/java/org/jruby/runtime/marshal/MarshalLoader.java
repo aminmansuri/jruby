@@ -171,7 +171,9 @@ public class MarshalLoader {
         for (int i = 0; i < count; i++) {
             RubySymbol key = symbol(context, in);
             String id = key.idString();
-            IRubyObject value = object0(context, in, state, false, null);
+            // The value is a complete object of its own: the pending-ivar state of the holder
+            // must not leak into it, or a Symbol value would read the next ivar as its encoding.
+            IRubyObject value = object0(context, in, null, false, null);
             Encoding encoding = symbolToEncoding(context, key, value);
 
             if (encoding != null) {
