@@ -170,6 +170,23 @@ is_newer() {
     [ -e "$master" ] && ! find "$@" -newer "$master" 2>/dev/null | read -r _
 }
 
+# classpath_has_dir CLASSPATH
+#
+# Returns 0 if any entry of CLASSPATH is a directory. A class path of just "."
+# is ignored, as the JVM does for CDS.
+classpath_has_dir() {
+    local IFS="$CP_DELIMITER" entry= globbing=
+    [ "$1" = "." ] && return 1
+    case $- in (*f*) ;; (*) globbing=true; set -f ;; esac
+    # shellcheck disable=2086  # split on the class path delimiter
+    set -- $1
+    [ "$globbing" ] && set +f
+    for entry; do
+        [ -d "$entry" ] && return 0
+    done
+    return 1
+}
+
 # unquote STRING
 #
 # Remove single/double quotes from beginning and end of a string
@@ -215,6 +232,7 @@ NO_BOOTCLASSPATH=false
 VERIFY_JRUBY=false
 print_environment_log=false
 regenerate_jsa_file=false
+generate_jsa_file=true
 remove_jsa_files=false
 log_cds=false
 
@@ -904,8 +922,18 @@ if $use_jsa_file; then
         regenerate_jsa_file=true
     fi
 
+    # The JVM exits 1 when it writes the archive with a non-empty directory on
+    # the class path, so such a run only reads an archive that already exists.
+    if classpath_has_dir "$CLASSPATH"; then
+        generate_jsa_file=false
+        regenerate_jsa_file=false
+
+        add_log
+        add_log "Not generating CDS archive: class path contains a directory"
+    fi
+
     # Defer generation to Java if flag is available
-    if $java_has_appcds_autogenerate; then
+    if $java_has_appcds_autogenerate && $generate_jsa_file; then
         append java_args -XX:+AutoCreateSharedArchive
 
         add_log
@@ -921,11 +949,11 @@ if $use_jsa_file; then
         add_log
         add_log "Regenerating CDS archive at:"
         add_log "  $jruby_jsa_file"
-    else
+    elif $generate_jsa_file || [ -e "$jruby_jsa_file" ]; then
         # Read archive if not explicitly regenerating
         append java_args -XX:SharedArchiveFile="$jruby_jsa_file"
 
-        if ! $java_has_appcds_autogenerate; then
+        if ! $java_has_appcds_autogenerate || ! $generate_jsa_file; then
             add_log
             add_log "Using CDS archive at:"
             add_log "  $jruby_jsa_file"
