@@ -71,7 +71,7 @@ describe "Fiber.current_scheduler" do
 
     it "returns nil on the root Fiber after a blocking Fiber has raised" do
       fiber = Fiber.new(blocking: true) { raise "from the fiber" }
-      -> { fiber.resume }.should.raise(RuntimeError)
+      -> { fiber.resume }.should raise_error(RuntimeError)
       Fiber.current_scheduler.should == nil
     end
 

@@ -128,7 +128,7 @@ describe "Fiber#kill" do
     end
 
     fiber.resume
-    -> { fiber.kill }.should.raise(RuntimeError, "from ensure")
+    -> { fiber.kill }.should raise_error(RuntimeError, "from ensure")
   end
 
   it "raises a FiberError when killing a fiber from a different Thread" do
@@ -136,7 +136,7 @@ describe "Fiber#kill" do
     fiber.resume
 
     Thread.new do
-      -> { fiber.kill }.should.raise(FiberError)
+      -> { fiber.kill }.should raise_error(FiberError)
     end.join
   end
 

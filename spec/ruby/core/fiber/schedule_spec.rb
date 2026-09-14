@@ -8,7 +8,7 @@ describe "Fiber.schedule" do
 
       -> {
         Fiber.schedule { }
-      }.should.raise(RuntimeError)
+      }.should raise_error(RuntimeError)
     end
   end
 
