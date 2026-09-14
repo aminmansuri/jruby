@@ -739,7 +739,7 @@ public class BiVariableMapTest {
     @Test
     public void testAnotherObjectsVariablesAreNotCached() {
         ScriptingContainer container = eagerContainer();
-        container.runScriptlet("class Cat; ONE = 1; @@count = 0; def initialize; @life = 'meow'; end; end");
+        container.runScriptlet("class Cat; ONE = 1; def initialize; @life = 'meow'; end; end");
         container.runScriptlet("Cat.new");
         final int size = container.getVarMap().size();
         for (int i = 0; i < 10; i++) container.runScriptlet("Cat.new");
@@ -768,6 +768,17 @@ public class BiVariableMapTest {
         container.runScriptlet("$cat.instance_variable_set(:@life, 'woof'); nil");
         assertEquals("woof", container.get(cat, "@life"));
         assertEquals("woof", container.runScriptlet("$cat.instance_variable_get(:@life)"));
+        container.terminate();
+    }
+
+    @Test
+    public void testReturnedObjectsClassVariableIsNotInjectedIntoObject() {
+        ScriptingContainer container = eagerContainer();
+        container.runScriptlet("class Dog; @@count = 0; def initialize; @@count += 1; end; end");
+        container.runScriptlet("Dog.new");
+        // a cached class variable of the returned object used to be stored into Object before the next
+        // evaluation, after which Ruby refuses the class its own variable (overtaken by Object)
+        assertEquals(2L, container.runScriptlet("Dog.new; Dog.class_variable_get(:@@count)"));
         container.terminate();
     }
 
