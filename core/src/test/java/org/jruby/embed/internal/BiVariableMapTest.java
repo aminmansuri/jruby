@@ -769,6 +769,21 @@ public class BiVariableMapTest {
         container.terminate();
     }
 
+    @Test
+    public void testReturnedObjectsClassConstantsAreNotResolved() {
+        ScriptingContainer container = eagerContainer();
+        Object cat = container.runScriptlet("class Cat; autoload :Lazy, '/nonexistent/lazy.rb'; def initialize; @life = 'meow'; end; def life; @life; end; def set(v); @life = v; end; end; $cat = Cat.new");
+        // returning the object or calling it must not resolve the constants of its class (the autoload would run and fail)
+        assertSame(cat, container.runScriptlet("$cat"));
+        assertEquals("meow", container.callMethod(cat, "life"));
+        // an entry a caller stored for the object is still refreshed after a call on the object
+        container.put(cat, "@life", "purr");
+        assertEquals("purr", container.callMethod(cat, "life"));
+        container.callMethod(cat, "set", "hiss");
+        assertEquals("hiss", container.get(cat, "@life"));
+        container.terminate();
+    }
+
     public static void main(String[] args) {
         org.junit.runner.JUnitCore.main(args);
     }
