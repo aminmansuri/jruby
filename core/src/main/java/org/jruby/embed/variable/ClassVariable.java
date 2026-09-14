@@ -95,9 +95,7 @@ public class ClassVariable extends AbstractVariable {
         if (vars.isLazy()) return;
 
         ThreadContext context = receiver.getRuntime().getCurrentContext();
-        // trying to get variables from receiver;
-        updateClassVar(context, receiver, vars);
-        // trying to get variables from topself.
+        // only top self is cached; another receiver's entries are refreshed by BiVariableMap.retrieve
         updateClassVar(context, getTopSelf(receiver), vars);
     }
 

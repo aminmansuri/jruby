@@ -392,6 +392,15 @@ public class BiVariableMap implements Map<String, Object> {
 
     void retrieve(final IRubyObject receiver) {
         final RubyObject robj = getReceiverObject(receiver);
+        if ( ! isTopSelf(robj) ) {
+            // another object is not walked (that would resolve every constant of its class, autoloads
+            // included, for nothing): only the entries a caller stored for it are refreshed from it
+            for ( final BiVariable var : getVariables() ) {
+                if ( var.getReceiver() != robj ) continue;
+                final IRubyObject value = VariableInterceptor.retrieveValue(getLocalVariableBehavior(), robj, var.getName());
+                if ( value != null ) var.setRubyObject(value);
+            }
+        }
         VariableInterceptor.retrieve(getLocalVariableBehavior(), this, robj);
     }
 

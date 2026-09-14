@@ -96,9 +96,8 @@ public class Constant extends AbstractVariable {
         if (vars.isLazy()) return;
         // user defined constants of top level go to a super class
         updateConstantsOfSuperClass(receiver, vars);
-        // Constants might have the same names but different receivers.
+        // only top self is cached; another receiver's entries are refreshed by BiVariableMap.retrieve
         var context = receiver.getRuntime().getCurrentContext();
-        updateConstants(context, receiver, vars);
         updateConstants(context, getTopSelf(receiver), vars);
     }
 
