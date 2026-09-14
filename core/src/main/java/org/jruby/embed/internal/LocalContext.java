@@ -40,6 +40,7 @@ import org.jruby.Ruby;
 import org.jruby.RubyInstanceConfig;
 import org.jruby.embed.AttributeName;
 import org.jruby.embed.LocalVariableBehavior;
+import org.jruby.util.SafePropertyAccessor;
 
 public class LocalContext {
 
@@ -110,6 +111,9 @@ public class LocalContext {
                     attributes.put(AttributeName.READER, new InputStreamReader(System.in));
                     attributes.put(AttributeName.WRITER, new PrintWriter(System.out, true));
                     attributes.put(AttributeName.ERROR_WRITER, new PrintWriter(System.err, true));
+                    // the system property documented for this attribute
+                    String sharing = SafePropertyAccessor.getProperty(AttributeName.SHARING_VARIABLES.toString());
+                    if (sharing != null) attributes.put(AttributeName.SHARING_VARIABLES, Boolean.valueOf(sharing));
                 }
             }
         }
