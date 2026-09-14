@@ -124,14 +124,7 @@ public class Constant extends AbstractVariable {
         final RubyClass klazz = receiver.getMetaClass();
         final Collection<String> constantNames = klazz.getConstantNames();
         for ( final String name : constantNames ) {
-            final IRubyObject value = klazz.getConstant(context, name);
-
-            final BiVariable var = vars.getVariable(receiver, name);
-            if (var == null) {
-                vars.update(name, new Constant(receiver, name, value));
-            } else {
-                var.setRubyObject(value);
-            }
+            vars.updateVariable(receiver, name, klazz.getConstant(context, name), Constant.class);
         }
     }
 
@@ -147,30 +140,27 @@ public class Constant extends AbstractVariable {
         final BiVariableMap vars, final String key) {
         // if the specified key doesn't exist, this method is called before the
         // evaluation. Don't update value in this case.
-        IRubyObject value = null;
+        final IRubyObject value = getValue(receiver, key);
+        if ( value == null ) return;
+
+        // the specified key is found, so let's update
+        vars.updateVariable(receiver, key, value, Constant.class);
+    }
+
+    static IRubyObject getValue(final RubyObject receiver, final String key) {
         var context = receiver.getRuntime().getCurrentContext();
 
         final RubyClass klazz = receiver.getMetaClass();
         if ( klazz.getConstantNames().contains(key) ) {
-            value = klazz.getConstant(context, key);
+            return klazz.getConstant(context, key);
         }
-        else if (getTopSelf(receiver).getMetaClass().getConstantNames().contains(key)) {
-            value = getTopSelf(receiver).getMetaClass().getConstant(context, key);
+        if (getTopSelf(receiver).getMetaClass().getConstantNames().contains(key)) {
+            return getTopSelf(receiver).getMetaClass().getConstant(context, key);
         }
-        else if (getTopSelf(receiver).getMetaClass().getSuperClass().getConstantNames().contains(key)) {
-            value = getTopSelf(receiver).getMetaClass().getSuperClass().getConstant(context, key);
+        if (getTopSelf(receiver).getMetaClass().getSuperClass().getConstantNames().contains(key)) {
+            return getTopSelf(receiver).getMetaClass().getSuperClass().getConstant(context, key);
         }
-
-        if ( value == null ) return;
-
-        // the specified key is found, so let's update
-        BiVariable var = vars.getVariable(receiver, key);
-        if (var != null) {
-            var.setRubyObject(value);
-        } else {
-            var = new Constant(receiver, key, value);
-            vars.update(key, var);
-        }
+        return null;
     }
 
     /**

@@ -211,6 +211,23 @@ public class VariableInterceptor {
     }
 
     /**
+     * Reads a variable or constant of an object other than top self from that object. Such variables
+     * are never cached in the map: an entry would hold the object as long as the map lives.
+     */
+    public static IRubyObject retrieveValue(LocalVariableBehavior behavior, RubyObject receiver, String key) {
+        switch (behavior) {
+            case GLOBAL:
+            case BSF:
+                return null;
+            default:
+                if (InstanceVariable.isValidName(key)) return receiver.getInstanceVariable(key);
+                if (ClassVariable.isValidName(key)) return ClassVariable.getValue(receiver, key);
+                if (Constant.isValidName(key)) return Constant.getValue(receiver, key);
+                return null;
+        }
+    }
+
+    /**
      * Clears global variable values from Ruby runtime to behave the same as
      * JSR 223 reference implementation.
      *

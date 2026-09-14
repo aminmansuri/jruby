@@ -118,21 +118,23 @@ public class ClassVariable extends AbstractVariable {
      * @param name instace varible name
      */
     public static void retrieveByKey(final RubyObject receiver, final BiVariableMap vars, final String name) {
-        final RubyClass klazz = receiver.getMetaClass();
-        var context = receiver.getRuntime().getCurrentContext();
-        IRubyObject value = null;
-        if ( receiver == receiver.getRuntime().getTopSelf() &&
-             klazz.getClassVariableNameList().contains(name) ) {
-            value = klazz.getClassVar(context, name);
-        }
-        else {
-            if ( klazz.hasClassVariable(name) ) {
-                value = klazz.getClassVar(context, name);
-            }
-        }
+        final IRubyObject value = getValue(receiver, name);
         if ( value == null ) return;
 
         vars.updateVariable(receiver, name, value, ClassVariable.class);
+    }
+
+    static IRubyObject getValue(final RubyObject receiver, final String name) {
+        final RubyClass klazz = receiver.getMetaClass();
+        var context = receiver.getRuntime().getCurrentContext();
+        if ( receiver == receiver.getRuntime().getTopSelf() &&
+             klazz.getClassVariableNameList().contains(name) ) {
+            return klazz.getClassVar(context, name);
+        }
+        if ( klazz.hasClassVariable(name) ) {
+            return klazz.getClassVar(context, name);
+        }
+        return null;
     }
 
     /**
