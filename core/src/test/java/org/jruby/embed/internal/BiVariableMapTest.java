@@ -30,6 +30,7 @@
 package org.jruby.embed.internal;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.StreamHandler;
@@ -726,6 +727,46 @@ public class BiVariableMapTest {
         ScriptingContainer container = new ScriptingContainer(LocalContextScope.SINGLETHREAD, LocalVariableBehavior.TRANSIENT);
         container.getVarMap().putAll(vars);
         assertEquals( 3, container.getVarMap().size() );
+    }
+
+    // eager retrieval, the JSR-223 factory's setting: every evaluation is followed by the retrieve pass
+    private static ScriptingContainer eagerContainer() {
+        return new ScriptingContainer(LocalContextScope.SINGLETHREAD, LocalVariableBehavior.TRANSIENT, false);
+    }
+
+    @Test
+    public void testAnotherObjectsVariablesAreNotCached() {
+        ScriptingContainer container = eagerContainer();
+        container.runScriptlet("class Cat; ONE = 1; @@count = 0; def initialize; @life = 'meow'; end; end");
+        container.runScriptlet("Cat.new");
+        final int size = container.getVarMap().size();
+        for (int i = 0; i < 10; i++) container.runScriptlet("Cat.new");
+        assertEquals(size, container.getVarMap().size());
+        Object topSelf = container.getProvider().getRuntime().getTopSelf();
+        for (BiVariable var : container.getVarMap().getVariables()) assertSame(var.getName(), topSelf, var.getReceiver());
+        container.terminate();
+    }
+
+    @Test
+    public void testReturnedObjectIsCollectable() throws InterruptedException {
+        ScriptingContainer container = eagerContainer();
+        container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; end");
+        WeakReference<Object> cat = new WeakReference<>(container.runScriptlet("Cat.new"));
+        // popped frames keep their self until overwritten; a deeper call chain replaces the stale ones
+        container.runScriptlet("def flush_frames(n) n > 0 ? flush_frames(n - 1) : nil end; flush_frames(16)");
+        for (int i = 0; i < 50 && cat.get() != null; i++) { System.gc(); Thread.sleep(50); }
+        assertNull(cat.get());
+        container.terminate();
+    }
+
+    @Test
+    public void testAnotherObjectsInstanceVariableIsReadFromTheObject() {
+        ScriptingContainer container = eagerContainer();
+        Object cat = container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; end; $cat = Cat.new");
+        container.runScriptlet("$cat.instance_variable_set(:@life, 'woof'); nil");
+        assertEquals("woof", container.get(cat, "@life"));
+        assertEquals("woof", container.runScriptlet("$cat.instance_variable_get(:@life)"));
+        container.terminate();
     }
 
     public static void main(String[] args) {
