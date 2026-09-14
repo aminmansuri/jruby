@@ -185,4 +185,25 @@ class TestLaunchingByShellScript < Test::Unit::TestCase
       assert_equal "true\n", output
     end
   end
+
+  # A non-empty directory on the class path must not make the run fail: the JVM
+  # exits 1 when asked to write a CDS archive over such a class path.
+  def test_classpath_directory_does_not_fail_the_run
+    unless IS_JAR_EXECUTION
+      require 'tmpdir'
+      Dir.mktmpdir('jruby-cds') do |dir|
+        File.write(File.join(dir, 'not_empty.txt'), 'x')
+        saved_jsa = ENV['JRUBY_JSA']
+        ENV['JRUBY_JSA'] = File.join(dir, 'fresh.jsa')
+        begin
+          out = jruby(%{-J-cp "#{dir}" -e "print 1" 2>&1})
+        ensure
+          ENV['JRUBY_JSA'] = saved_jsa
+        end
+        assert_equal 0, $?.exitstatus, out
+        assert_equal "1", out
+      end
+    end
+  end
+
 end
