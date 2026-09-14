@@ -48,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.jruby.RubyClass;
+import org.jruby.embed.EmbedRubyObjectAdapter;
 import org.jruby.embed.LocalVariableBehavior;
 import org.jruby.embed.ScriptingContainer;
 import org.jruby.embed.LocalContextScope;
@@ -793,6 +794,20 @@ public class BiVariableMapTest {
         container.newObjectAdapter().setInstanceVariable(cat, "@life", cat.getRuntime().newString("purr"));
         assertEquals(size, container.getVarMap().size());
         assertEquals("purr", container.callMethod(cat, "life"));
+        container.terminate();
+    }
+
+    @Test
+    public void testObjectAdapterReadsInstanceVariableFromTheObject() {
+        ScriptingContainer container = eagerContainer();
+        EmbedRubyObjectAdapter adapter = container.newObjectAdapter();
+        IRubyObject cat = (IRubyObject) container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; def set(v); @life = v; end; end; Cat.new");
+        assertEquals("meow", String.valueOf(adapter.getInstanceVariable(cat, "@life")));
+        container.callMethod(cat, "set", "woof");
+        assertEquals("woof", String.valueOf(adapter.getInstanceVariable(cat, "@life")));
+        // a mapping a caller stored for another object under the same name is not this object's
+        container.put(container.runScriptlet("Cat.new"), "@life", "purr");
+        assertEquals("woof", String.valueOf(adapter.getInstanceVariable(cat, "@life")));
         container.terminate();
     }
 
