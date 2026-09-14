@@ -212,13 +212,14 @@ public class BiVariableMap implements Map<String, Object> {
 
     /**
      * Returns the value in simple Java object to which the specified receiver
-     * and key is mapped, or {@code null} if this map contains no mapping
-     * for the key in a given receiver.
+     * and key is mapped. For a receiver other than top self the value is read from
+     * the object itself when this map has no mapping for it; a constant lookup may
+     * trigger its autoload.
      *
      * @param receiver is a receiver object to get the value from
      * @param key is the key whose associated value is to be returned
      * @return the value in simple Java object to which the specified key is mapped, or
-     *         {@code null} if this map contains no mapping for the key
+     *         {@code null} if neither this map nor the receiver has it
      */
     public Object get(Object receiver, Object key) {
         checkKey(key);
