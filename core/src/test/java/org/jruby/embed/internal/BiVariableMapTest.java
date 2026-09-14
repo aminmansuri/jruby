@@ -30,6 +30,7 @@
 package org.jruby.embed.internal;
 
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.StreamHandler;
@@ -47,10 +48,12 @@ import java.util.HashMap;
 import java.util.List;
 
 import org.jruby.RubyClass;
+import org.jruby.embed.EmbedRubyObjectAdapter;
 import org.jruby.embed.LocalVariableBehavior;
 import org.jruby.embed.ScriptingContainer;
 import org.jruby.embed.LocalContextScope;
 import org.jruby.embed.variable.BiVariable;
+import org.jruby.runtime.builtin.IRubyObject;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -726,6 +729,97 @@ public class BiVariableMapTest {
         ScriptingContainer container = new ScriptingContainer(LocalContextScope.SINGLETHREAD, LocalVariableBehavior.TRANSIENT);
         container.getVarMap().putAll(vars);
         assertEquals( 3, container.getVarMap().size() );
+    }
+
+    // eager retrieval, the JSR-223 factory's setting: every evaluation is followed by the retrieve pass
+    private static ScriptingContainer eagerContainer() {
+        return new ScriptingContainer(LocalContextScope.SINGLETHREAD, LocalVariableBehavior.TRANSIENT, false);
+    }
+
+    @Test
+    public void testAnotherObjectsVariablesAreNotCached() {
+        ScriptingContainer container = eagerContainer();
+        container.runScriptlet("class Cat; ONE = 1; def initialize; @life = 'meow'; end; end");
+        container.runScriptlet("Cat.new");
+        final int size = container.getVarMap().size();
+        for (int i = 0; i < 10; i++) container.runScriptlet("Cat.new");
+        assertEquals(size, container.getVarMap().size());
+        Object topSelf = container.getProvider().getRuntime().getTopSelf();
+        for (BiVariable var : container.getVarMap().getVariables()) assertSame(var.getName(), topSelf, var.getReceiver());
+        container.terminate();
+    }
+
+    @Test
+    public void testReturnedObjectIsCollectable() throws InterruptedException {
+        ScriptingContainer container = eagerContainer();
+        container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; end");
+        WeakReference<Object> cat = new WeakReference<>(container.runScriptlet("Cat.new"));
+        // popped frames keep their self until overwritten; a deeper call chain replaces the stale ones
+        container.runScriptlet("def flush_frames(n) n > 0 ? flush_frames(n - 1) : nil end; flush_frames(16)");
+        for (int i = 0; i < 50 && cat.get() != null; i++) { System.gc(); Thread.sleep(50); }
+        assertNull(cat.get());
+        container.terminate();
+    }
+
+    @Test
+    public void testAnotherObjectsInstanceVariableIsReadFromTheObject() {
+        ScriptingContainer container = eagerContainer();
+        Object cat = container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; end; $cat = Cat.new");
+        container.runScriptlet("$cat.instance_variable_set(:@life, 'woof'); nil");
+        assertEquals("woof", container.get(cat, "@life"));
+        assertEquals("woof", container.runScriptlet("$cat.instance_variable_get(:@life)"));
+        container.terminate();
+    }
+
+    @Test
+    public void testReturnedObjectsClassVariableIsNotInjectedIntoObject() {
+        ScriptingContainer container = eagerContainer();
+        container.runScriptlet("class Dog; @@count = 0; def initialize; @@count += 1; end; end");
+        container.runScriptlet("Dog.new");
+        // a cached class variable of the returned object used to be stored into Object before the next
+        // evaluation, after which Ruby refuses the class its own variable (overtaken by Object)
+        assertEquals(2L, container.runScriptlet("Dog.new; Dog.class_variable_get(:@@count)"));
+        container.terminate();
+    }
+
+    @Test
+    public void testReturnedObjectsClassConstantsAreNotResolved() {
+        ScriptingContainer container = eagerContainer();
+        Object cat = container.runScriptlet("class Cat; autoload :Lazy, '/nonexistent/lazy.rb'; def initialize; @life = 'meow'; end; def life; @life; end; def set(v); @life = v; end; end; $cat = Cat.new");
+        // returning the object or calling it must not resolve the constants of its class (the autoload would run and fail)
+        assertSame(cat, container.runScriptlet("$cat"));
+        assertEquals("meow", container.callMethod(cat, "life"));
+        // an entry a caller stored for the object is still refreshed after a call on the object
+        container.put(cat, "@life", "purr");
+        assertEquals("purr", container.callMethod(cat, "life"));
+        container.callMethod(cat, "set", "hiss");
+        assertEquals("hiss", container.get(cat, "@life"));
+        container.terminate();
+    }
+
+    @Test
+    public void testObjectAdapterCachesNoOtherObjectsInstanceVariable() {
+        ScriptingContainer container = eagerContainer();
+        IRubyObject cat = (IRubyObject) container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; def life; @life; end; end; Cat.new");
+        final int size = container.getVarMap().size();
+        container.newObjectAdapter().setInstanceVariable(cat, "@life", cat.getRuntime().newString("purr"));
+        assertEquals(size, container.getVarMap().size());
+        assertEquals("purr", container.callMethod(cat, "life"));
+        container.terminate();
+    }
+
+    @Test
+    public void testObjectAdapterReadsInstanceVariableFromTheObject() {
+        ScriptingContainer container = eagerContainer();
+        EmbedRubyObjectAdapter adapter = container.newObjectAdapter();
+        IRubyObject cat = (IRubyObject) container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; def set(v); @life = v; end; end; Cat.new");
+        assertEquals("meow", String.valueOf(adapter.getInstanceVariable(cat, "@life")));
+        container.callMethod(cat, "set", "woof");
+        assertEquals("woof", String.valueOf(adapter.getInstanceVariable(cat, "@life")));
+        // a mapping a caller stored for another object under the same name is not this object's
+        container.put(container.runScriptlet("Cat.new"), "@life", "purr");
+        assertEquals("woof", String.valueOf(adapter.getInstanceVariable(cat, "@life")));
+        container.terminate();
     }
 
     public static void main(String[] args) {

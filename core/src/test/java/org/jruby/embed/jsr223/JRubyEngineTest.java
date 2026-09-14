@@ -863,6 +863,14 @@ public class JRubyEngineTest extends BaseTest {
         return ((JRubyEngine) engine).container.getVarMap();
     }
 
+    @Test
+    public void testReturnedObjectsInstanceVariablesStayOutOfBindings() throws Exception {
+        ScriptEngine instance = newScriptEngine();
+        instance.eval("class Cat; def initialize; @life = 'meow'; end; end; Cat.new");
+        assertFalse(instance.getBindings(ScriptContext.ENGINE_SCOPE).containsKey("@life"));
+        instance.getBindings(ScriptContext.ENGINE_SCOPE).clear();
+    }
+
     private ScriptEngine newScriptEngine() {
         return newScriptEngine("singlethread", "transient");
     }

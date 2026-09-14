@@ -44,6 +44,7 @@ import org.jruby.RubyObject;
 import org.jruby.embed.LocalVariableBehavior;
 import org.jruby.embed.variable.BiVariable;
 import org.jruby.embed.variable.VariableInterceptor;
+import org.jruby.javasupport.JavaEmbedUtils;
 import org.jruby.runtime.DynamicScope;
 import org.jruby.runtime.builtin.IRubyObject;
 import org.jruby.runtime.scope.ManyVarsDynamicScope;
@@ -211,13 +212,14 @@ public class BiVariableMap implements Map<String, Object> {
 
     /**
      * Returns the value in simple Java object to which the specified receiver
-     * and key is mapped, or {@code null} if this map contains no mapping
-     * for the key in a given receiver.
+     * and key is mapped. For a receiver other than top self the value is read from
+     * the object itself when this map has no mapping for it; a constant lookup may
+     * trigger its autoload.
      *
      * @param receiver is a receiver object to get the value from
      * @param key is the key whose associated value is to be returned
      * @return the value in simple Java object to which the specified key is mapped, or
-     *         {@code null} if this map contains no mapping for the key
+     *         {@code null} if neither this map nor the receiver has it
      */
     public Object get(Object receiver, Object key) {
         checkKey(key);
@@ -227,7 +229,12 @@ public class BiVariableMap implements Map<String, Object> {
             VariableInterceptor.tryLazyRetrieval(provider.getLocalVariableBehavior(), this, robj, key);
         }
         BiVariable var = getVariable(robj, (String) key);
-        return var == null ? null : var.getJavaObject();
+        if ( var != null ) return var.getJavaObject();
+        if ( isTopSelf(robj) ) return null;
+        // the variables of another object are not cached here (an entry would hold the object as long as
+        // this map lives): read the object itself
+        IRubyObject value = VariableInterceptor.retrieveValue(provider.getLocalVariableBehavior(), robj, (String) key);
+        return value == null ? null : JavaEmbedUtils.rubyToJava(value);
     }
 
     private RubyObject getReceiverObject(final Object receiver) {
@@ -236,6 +243,10 @@ public class BiVariableMap implements Map<String, Object> {
 
     private RubyObject getTopSelf() {
         return (RubyObject) getRuntime().getTopSelf();
+    }
+
+    private static boolean isTopSelf(final RubyObject receiver) {
+        return receiver == receiver.getRuntime().getTopSelf();
     }
 
     /**
@@ -382,6 +393,15 @@ public class BiVariableMap implements Map<String, Object> {
 
     void retrieve(final IRubyObject receiver) {
         final RubyObject robj = getReceiverObject(receiver);
+        if ( ! isTopSelf(robj) ) {
+            // another object is not walked (that would resolve every constant of its class, autoloads
+            // included, for nothing): only the entries a caller stored for it are refreshed from it
+            for ( final BiVariable var : getVariables() ) {
+                if ( var.getReceiver() != robj ) continue;
+                final IRubyObject value = VariableInterceptor.retrieveValue(getLocalVariableBehavior(), robj, var.getName());
+                if ( value != null ) var.setRubyObject(value);
+            }
+        }
         VariableInterceptor.retrieve(getLocalVariableBehavior(), this, robj);
     }
 
@@ -530,13 +550,17 @@ public class BiVariableMap implements Map<String, Object> {
         getVariables().add(value);
     }
 
+    /**
+     * Updates the entry of a variable read back from Ruby, creating one only for top self: an entry
+     * holds its receiver as long as this map lives, so the variables of other objects are never cached.
+     */
     public void updateVariable(final RubyObject receiver, final String name,
         final IRubyObject value, final Class<? extends BiVariable> type) {
         final BiVariable var = getVariable(receiver, name);
         if (var != null) {
             var.setRubyObject(value);
         }
-        else {
+        else if (isTopSelf(receiver)) {
             update(name, newVariable(receiver, name, value, type));
         }
     }

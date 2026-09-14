@@ -308,6 +308,40 @@ public class ScriptingContainerTest {
         instance.terminate();
     }
 
+    @Test
+    public void testSharingVariablesSystemProperty() {
+        System.setProperty(AttributeName.SHARING_VARIABLES.toString(), "false");
+        try {
+            ScriptingContainer instance = new ScriptingContainer(LocalContextScope.SINGLETHREAD);
+            try {
+                assertEquals(Boolean.FALSE, instance.getAttribute(AttributeName.SHARING_VARIABLES));
+                instance.put("@message", "not shared");
+                assertNull(instance.runScriptlet("@message"));
+            } finally {
+                instance.terminate();
+            }
+        } finally {
+            System.clearProperty(AttributeName.SHARING_VARIABLES.toString());
+        }
+    }
+
+    @Test
+    public void testSharingVariablesSystemPropertyIgnoresOtherValues() {
+        System.setProperty(AttributeName.SHARING_VARIABLES.toString(), "0");
+        try {
+            ScriptingContainer instance = new ScriptingContainer(LocalContextScope.SINGLETHREAD);
+            try {
+                assertNull(instance.getAttribute(AttributeName.SHARING_VARIABLES));
+                instance.put("@message", "shared");
+                assertEquals("shared", instance.runScriptlet("@message"));
+            } finally {
+                instance.terminate();
+            }
+        } finally {
+            System.clearProperty(AttributeName.SHARING_VARIABLES.toString());
+        }
+    }
+
     /**
      * Test of getAttribute method, of class ScriptingContainer.
      */

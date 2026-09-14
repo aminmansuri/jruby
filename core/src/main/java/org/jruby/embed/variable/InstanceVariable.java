@@ -90,7 +90,7 @@ public class InstanceVariable extends AbstractVariable {
      */
     public static void retrieve(RubyObject receiver, BiVariableMap vars) {
         if (vars.isLazy()) return;
-        updateInstanceVar(receiver, vars);
+        // only top self is cached; another receiver's entries are refreshed by BiVariableMap.retrieve
         updateInstanceVar(getTopSelf(receiver), vars);
     }
 
@@ -99,13 +99,7 @@ public class InstanceVariable extends AbstractVariable {
     }
 
     private static void updateVariable(RubyObject receiver, BiVariableMap vars, String key, IRubyObject value) {
-        BiVariable var = vars.getVariable(receiver, key);
-        if (var != null) {
-            var.setRubyObject(value);
-        } else {
-            var = new InstanceVariable(receiver, key, value);
-            vars.update(key, var);
-        }
+        vars.updateVariable(receiver, key, value, InstanceVariable.class);
     }
 
     /**

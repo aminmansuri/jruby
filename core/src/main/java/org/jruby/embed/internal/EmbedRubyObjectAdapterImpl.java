@@ -102,12 +102,12 @@ public class EmbedRubyObjectAdapterImpl implements EmbedRubyObjectAdapter {
     public IRubyObject setInstanceVariable(IRubyObject obj, String variableName, IRubyObject value) {
         BiVariableMap map = container.getVarMap();
         synchronized (map) {
-            if (map.containsKey(variableName)) {
-                BiVariable bv = map.getVariable((RubyObject) getTopSelf(), variableName);
+            // the map caches top self only; another object has an entry only if a caller stored one
+            BiVariable bv = obj instanceof RubyObject ? map.getVariable((RubyObject) obj, variableName) : null;
+            if (bv != null) {
                 bv.setRubyObject(value);
-            } else {
-                InstanceVariable iv = new InstanceVariable(obj, variableName, value);
-                map.update(variableName, iv);
+            } else if (obj == obj.getRuntime().getTopSelf()) {
+                map.update(variableName, new InstanceVariable(obj, variableName, value));
             }
         }
         return obj.getInstanceVariables().setInstanceVariable(variableName, value);
@@ -116,12 +116,11 @@ public class EmbedRubyObjectAdapterImpl implements EmbedRubyObjectAdapter {
     public IRubyObject getInstanceVariable(IRubyObject obj, String variableName) {
         BiVariableMap map = container.getVarMap();
         synchronized (map) {
-            if (map.containsKey(variableName)) {
-                BiVariable bv = map.getVariable((RubyObject) getTopSelf(), variableName);
-                return bv.getRubyObject();
-            }
+            // a mapping stored for this object answers first, as BiVariableMap.get(receiver, key) does
+            BiVariable bv = obj instanceof RubyObject ? map.getVariable((RubyObject) obj, variableName) : null;
+            if (bv != null) return bv.getRubyObject();
         }
-        return null;
+        return obj.getInstanceVariables().getInstanceVariable(variableName);
     }
 
     public IRubyObject callMethod(IRubyObject receiver, String methodName) {
