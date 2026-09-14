@@ -111,9 +111,12 @@ public class LocalContext {
                     attributes.put(AttributeName.READER, new InputStreamReader(System.in));
                     attributes.put(AttributeName.WRITER, new PrintWriter(System.out, true));
                     attributes.put(AttributeName.ERROR_WRITER, new PrintWriter(System.err, true));
-                    // the system property documented for this attribute
+                    // the system property documented for this attribute; only "true" or "false" (any case)
+                    // takes effect, any other value is ignored and leaves the default
                     String sharing = SafePropertyAccessor.getProperty(AttributeName.SHARING_VARIABLES.toString());
-                    if (sharing != null) attributes.put(AttributeName.SHARING_VARIABLES, Boolean.valueOf(sharing));
+                    if ("true".equalsIgnoreCase(sharing) || "false".equalsIgnoreCase(sharing)) {
+                        attributes.put(AttributeName.SHARING_VARIABLES, Boolean.valueOf(sharing));
+                    }
                 }
             }
         }
