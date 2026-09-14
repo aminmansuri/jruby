@@ -116,12 +116,11 @@ public class EmbedRubyObjectAdapterImpl implements EmbedRubyObjectAdapter {
     public IRubyObject getInstanceVariable(IRubyObject obj, String variableName) {
         BiVariableMap map = container.getVarMap();
         synchronized (map) {
-            if (map.containsKey(variableName)) {
-                BiVariable bv = map.getVariable((RubyObject) getTopSelf(), variableName);
-                return bv.getRubyObject();
-            }
+            // a mapping stored for this object answers first, as BiVariableMap.get(receiver, key) does
+            BiVariable bv = obj instanceof RubyObject ? map.getVariable((RubyObject) obj, variableName) : null;
+            if (bv != null) return bv.getRubyObject();
         }
-        return null;
+        return obj.getInstanceVariables().getInstanceVariable(variableName);
     }
 
     public IRubyObject callMethod(IRubyObject receiver, String methodName) {
