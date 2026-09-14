@@ -52,6 +52,7 @@ import org.jruby.embed.LocalVariableBehavior;
 import org.jruby.embed.ScriptingContainer;
 import org.jruby.embed.LocalContextScope;
 import org.jruby.embed.variable.BiVariable;
+import org.jruby.runtime.builtin.IRubyObject;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -781,6 +782,17 @@ public class BiVariableMapTest {
         assertEquals("purr", container.callMethod(cat, "life"));
         container.callMethod(cat, "set", "hiss");
         assertEquals("hiss", container.get(cat, "@life"));
+        container.terminate();
+    }
+
+    @Test
+    public void testObjectAdapterCachesNoOtherObjectsInstanceVariable() {
+        ScriptingContainer container = eagerContainer();
+        IRubyObject cat = (IRubyObject) container.runScriptlet("class Cat; def initialize; @life = 'meow'; end; def life; @life; end; end; Cat.new");
+        final int size = container.getVarMap().size();
+        container.newObjectAdapter().setInstanceVariable(cat, "@life", cat.getRuntime().newString("purr"));
+        assertEquals(size, container.getVarMap().size());
+        assertEquals("purr", container.callMethod(cat, "life"));
         container.terminate();
     }
 
