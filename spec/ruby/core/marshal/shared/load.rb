@@ -314,6 +314,20 @@ describe :marshal_load, shared: true do
       object.string.should == "a".encode("utf-32le")
     end
 
+    it "loads an instance variable of the String returned by _dump when its value is a Symbol" do
+      string = +"string"
+      string.instance_variable_set(:@foo, :bar)
+      object = Marshal.send(@method, Marshal.dump(UserDefinedString.new(string)))
+      object.string.instance_variable_get(:@foo).should == :bar
+    end
+
+    it "loads an instance variable of the String returned by _dump when its value is an object with _dump" do
+      string = +"string"
+      string.instance_variable_set(:@foo, UserDefinedString.new("value"))
+      object = Marshal.send(@method, Marshal.dump(UserDefinedString.new(string)))
+      object.string.instance_variable_get(:@foo).string.should == "value"
+    end
+
     describe "that returns an immediate value" do
       it "loads an array containing an instance of the object, followed by multiple instances of another object" do
         str = "string"
@@ -933,6 +947,12 @@ describe :marshal_load, shared: true do
       new_obj.instance_variable_get(:@regexp_ivar).should == [42]
     end
 
+    it "restores the regexp instance variables when a value is a Symbol" do
+      new_obj = Marshal.send(@method, "\x04\bI/\nhello\x00\a:\x06EF:\x11@regexp_ivar:\bbar")
+      new_obj.instance_variables.should == [:@regexp_ivar]
+      new_obj.instance_variable_get(:@regexp_ivar).should == :bar
+    end
+
     it "preserves Regexp encoding" do
       source_object = Regexp.new("a".encode("utf-32le"))
       regexp = Marshal.send(@method, Marshal.dump(source_object))
@@ -1084,6 +1104,23 @@ describe :marshal_load, shared: true do
       t.instance_variable_set(:@foo, 'bar')
 
       Marshal.send(@method, Marshal.dump(t)).instance_variable_get(:@foo).should == 'bar'
+    end
+
+    it "loads serialized instance variables whose value is a Symbol" do
+      t = Time.utc(2022)
+      t.instance_variable_set(:@foo, :bar)
+
+      t2 = Marshal.send(@method, Marshal.dump(t))
+      t2.should == t
+      t2.instance_variable_get(:@foo).should == :bar
+    end
+
+    it "loads a serialized instance variable placed before the offset and the zone" do
+      t = Marshal.send(@method, "\x04\bIu:\tTime\r\x01\xDF\x1E\x80eDI}\b:\n@type:\fruntime:\voffseti\xFE\x90\x9D:\tzoneI\"\bPDT\x06:\x06EF")
+      t.should == Time.new(2023, 8, 23, 18, 31, 20 + Rational(607333, 1_000_000), "-07:00")
+      t.utc_offset.should == -25200
+      t.zone.should == "PDT"
+      t.instance_variable_get(:@type).should == :runtime
     end
 
     it "loads Time objects stored as links" do
