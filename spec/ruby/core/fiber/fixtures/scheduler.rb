@@ -37,4 +37,69 @@ module FiberSpecs
     end
   end
 
+  # CRuby's test/fiber/scheduler.rb shape: #fiber enters the new Fiber by transfer, the blocking hooks
+  # transfer back to the owning Fiber, and #run transfers into each parked Fiber once it is due.
+  class TransferringScheduler
+    attr_reader :waiting
+
+    def initialize
+      @owner = Fiber.current
+      @waiting = {}
+      @blocking = {}
+      @ready = []
+      @lock = Mutex.new
+    end
+
+    def fiber(&block)
+      fiber = Fiber.new(blocking: false, &block)
+      fiber.transfer
+      fiber
+    end
+
+    def kernel_sleep(duration = nil)
+      block(:sleep, duration)
+    end
+
+    def io_wait(io, events, timeout)
+      block(io, timeout)
+    end
+
+    def block(blocker, timeout = nil)
+      fiber = Fiber.current
+      if timeout
+        @waiting[fiber] = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+      else
+        @blocking[fiber] = true
+      end
+      @owner.transfer
+    ensure
+      @waiting.delete(fiber)
+      @blocking.delete(fiber)
+    end
+
+    def unblock(blocker, fiber)
+      @lock.synchronize { @ready << fiber }
+    end
+
+    def run
+      while @waiting.any? || @blocking.any? || @ready.any?
+        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        due = @waiting.select { |_fiber, time| time <= now }.keys
+        ready = @lock.synchronize { r, @ready = @ready, []; r }
+
+        if due.empty? && ready.empty?
+          soonest = @waiting.values.min
+          sleep(soonest - now) if soonest && soonest > now
+          next
+        end
+
+        (due + ready).each { |fiber| fiber.transfer if fiber.alive? }
+      end
+    end
+
+    def close
+      run
+    end
+  end
+
 end

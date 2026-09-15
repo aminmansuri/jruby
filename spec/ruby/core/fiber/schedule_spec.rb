@@ -66,4 +66,36 @@ describe "Fiber.schedule" do
       seen.should.equal?(@scheduler)
     end
   end
+
+  describe "when the scheduler's #fiber hook enters the new Fiber by transfer" do
+    before :each do
+      @scheduler = FiberSpecs::TransferringScheduler.new
+      Fiber.set_scheduler(@scheduler)
+    end
+
+    after :each do
+      Fiber.set_scheduler(nil)
+    end
+
+    it "returns to the caller at the first Kernel#sleep and lets the scheduler finish the Fiber later" do
+      states = []
+
+      fiber = Fiber.schedule do
+        3.times do
+          states << :tick
+          sleep(0.001)
+        end
+        states << :done
+      end
+
+      # the first sleep parks the scheduled Fiber and hands control back to the caller
+      states.should == [:tick]
+      fiber.should.alive?
+
+      # the scheduler transfers back into the Fiber as its timers become due
+      @scheduler.run
+      states.should == [:tick, :tick, :tick, :done]
+      fiber.should_not.alive?
+    end
+  end
 end
